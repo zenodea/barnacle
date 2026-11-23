@@ -110,6 +110,22 @@ fn dag_hydrangea(leader_count: usize, adaptive_scheduler: bool) -> ConsensusProt
     }
 }
 
+/// Orcaella protocol selection with explicit scheduler settings, in its hybrid
+/// configuration on a 10-validator committee: `f = 1, c = 1` meets its bound
+/// `n >= 5f + 3c + 1`, and its quorum `n - f - c = 8` tolerates two slow or
+/// crashed validators. (Matching Mysticeti's three would need the crash-only
+/// `f = 0, c = 3`; any `f > 0` caps the tolerance at two when n = 10.)
+fn orcaella(leader_count: usize, adaptive_scheduler: bool) -> ConsensusProtocol {
+    ConsensusProtocol::Orcaella {
+        leader_count: NonZeroUsize::new(leader_count).expect("leader_count must be non-zero"),
+        f: 1,
+        c: 1,
+        adaptive_scheduler,
+        max_leaders_per_round: NonZeroUsize::new(5).unwrap(),
+        scheduler_interval: 25,
+    }
+}
+
 /// Mahi-Mahi protocol selection with explicit wave length and scheduler settings.
 fn mahi_mahi(leader_count: usize, wave_length: u64, adaptive_scheduler: bool) -> ConsensusProtocol {
     ConsensusProtocol::MahiMahi {
@@ -402,8 +418,8 @@ fn mysticeti_fixed_5() {
 // crash count is capped at each protocol's fault tolerance (`n - commit_quorum`)
 // at COMMITTEE_SIZE = 10, so the live set is still a quorum and consensus stays
 // live: mysticeti / mahi-mahi / dag-hydrangea (f=3, c=0, k=0) tolerate 3,
-// nemo-nemo 4 (we use 3), and blue-bottle only 1 (its `4n/5+1 = 9` quorum
-// must stay live).
+// nemo-nemo 4 (we use 3), orcaella (f=1, c=1) 2 (its `n-f-c = 8` quorum must
+// stay live), and blue-bottle only 1 (its `4n/5+1 = 9` quorum must stay live).
 
 #[test]
 #[ignore = "long-running experiment; run via scripts/run_protocol.sh crash"]
@@ -514,6 +530,24 @@ fn dag_hydrangea_crash_fixed_5() {
 }
 
 #[test]
+#[ignore = "long-running experiment; run via scripts/run_protocol.sh crash"]
+fn orcaella_crash_adaptive() {
+    run_crash_variant("orcaella", "adaptive", orcaella(5, true), 2);
+}
+
+#[test]
+#[ignore = "long-running experiment; run via scripts/run_protocol.sh crash"]
+fn orcaella_crash_fixed_1() {
+    run_crash_variant("orcaella", "fixed_1", orcaella(1, false), 2);
+}
+
+#[test]
+#[ignore = "long-running experiment; run via scripts/run_protocol.sh crash"]
+fn orcaella_crash_fixed_5() {
+    run_crash_variant("orcaella", "fixed_5", orcaella(5, false), 2);
+}
+
+#[test]
 #[ignore = "long-running experiment; run via scripts/run_protocol.sh degraded"]
 fn blue_bottle_adaptive() {
     run_variant("blue-bottle", "adaptive", blue_bottle(5, true), 1);
@@ -601,6 +635,24 @@ fn dag_hydrangea_fixed_1() {
 #[ignore = "long-running experiment; run via scripts/run_protocol.sh degraded"]
 fn dag_hydrangea_fixed_5() {
     run_variant("dag-hydrangea", "fixed_5", dag_hydrangea(5, false), 3);
+}
+
+#[test]
+#[ignore = "long-running experiment; run via scripts/run_protocol.sh degraded"]
+fn orcaella_adaptive() {
+    run_variant("orcaella", "adaptive", orcaella(5, true), 2);
+}
+
+#[test]
+#[ignore = "long-running experiment; run via scripts/run_protocol.sh degraded"]
+fn orcaella_fixed_1() {
+    run_variant("orcaella", "fixed_1", orcaella(1, false), 2);
+}
+
+#[test]
+#[ignore = "long-running experiment; run via scripts/run_protocol.sh degraded"]
+fn orcaella_fixed_5() {
+    run_variant("orcaella", "fixed_5", orcaella(5, false), 2);
 }
 
 #[test]

@@ -49,6 +49,14 @@ pub enum ConsensusProtocol {
         /// Crash-only fault stake to tolerate (on top of `f`); requires
         /// `n >= 5f+3c+1` for `f > 0`, or `n >= 2c+1` for `f = 0`.
         c: Stake,
+        /// Enable the adaptive leader scheduler, which tunes the
+        /// number of leaders per round based on observed commit rate.
+        #[serde(default)]
+        adaptive_scheduler: bool,
+        #[serde(default = "defaults::default_max_leaders_per_round")]
+        max_leaders_per_round: NonZeroUsize,
+        #[serde(default = "defaults::default_scheduler_interval")]
+        scheduler_interval: RoundNumber,
     },
     MahiMahi {
         #[serde(default = "defaults::default_leader_count")]
@@ -163,11 +171,18 @@ impl fmt::Display for ConsensusProtocol {
                 leader_count,
                 adaptive_label(*adaptive_scheduler)
             ),
-            Self::Orcaella { leader_count, f, c } => {
+            Self::Orcaella {
+                leader_count,
+                f,
+                c,
+                adaptive_scheduler,
+                ..
+            } => {
                 write!(
                     fmt,
-                    "Orcaella ({} leaders/round, f={f}, c={c})",
-                    leader_count
+                    "Orcaella ({} leaders/round, f={f}, c={c}{})",
+                    leader_count,
+                    adaptive_label(*adaptive_scheduler)
                 )
             }
             Self::MahiMahi {
@@ -248,9 +263,17 @@ impl fmt::Debug for ConsensusProtocol {
                 "blue-bottle-l{leader_count}{}",
                 adaptive_suffix(*adaptive_scheduler)
             ),
-            Self::Orcaella { leader_count, f, c } => {
-                write!(fmt, "orcaella-l{leader_count}-f{f}-c{c}")
-            }
+            Self::Orcaella {
+                leader_count,
+                f,
+                c,
+                adaptive_scheduler,
+                ..
+            } => write!(
+                fmt,
+                "orcaella-l{leader_count}-f{f}-c{c}{}",
+                adaptive_suffix(*adaptive_scheduler)
+            ),
             Self::MahiMahi {
                 leader_count,
                 wave_length,
@@ -334,9 +357,18 @@ impl ConsensusProtocol {
                 max_leaders_per_round,
                 scheduler_interval,
             ),
-            Self::Orcaella { leader_count, f, c } => {
-                Protocol::orcaella(total_stake, f, c, leader_count)?
-            }
+            Self::Orcaella {
+                leader_count,
+                f,
+                c,
+                adaptive_scheduler,
+                max_leaders_per_round,
+                scheduler_interval,
+            } => Protocol::orcaella(total_stake, f, c, leader_count)?.with_scheduler(
+                adaptive_scheduler,
+                max_leaders_per_round,
+                scheduler_interval,
+            ),
             Self::MahiMahi {
                 leader_count,
                 wave_length,
@@ -406,12 +438,18 @@ impl ConsensusProtocol {
                 leader_count,
                 f: 0,
                 c: 1,
+                adaptive_scheduler: false,
+                max_leaders_per_round: leader_count,
+                scheduler_interval: defaults::default_scheduler_interval(),
             });
             if n >= 6 {
                 variants.push(Self::Orcaella {
                     leader_count,
                     f: 1,
                     c: 0,
+                    adaptive_scheduler: false,
+                    max_leaders_per_round: leader_count,
+                    scheduler_interval: defaults::default_scheduler_interval(),
                 });
             }
             if n >= 9 {
@@ -419,6 +457,9 @@ impl ConsensusProtocol {
                     leader_count,
                     f: 1,
                     c: 1,
+                    adaptive_scheduler: false,
+                    max_leaders_per_round: leader_count,
+                    scheduler_interval: defaults::default_scheduler_interval(),
                 });
             }
             variants.push(Self::MahiMahi {

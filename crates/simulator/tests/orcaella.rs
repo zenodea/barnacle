@@ -12,10 +12,14 @@ use replica::result::{Outcome, RunResult};
 use simulator::{NetworkTopology, SimulationConfig, SimulationRunner};
 
 fn orcaella(f: u64, c: u64, leader_count: usize) -> ConsensusProtocol {
+    let leader_count = NonZeroUsize::new(leader_count).unwrap();
     ConsensusProtocol::Orcaella {
-        leader_count: NonZeroUsize::new(leader_count).unwrap(),
+        leader_count,
         f,
         c,
+        adaptive_scheduler: false,
+        max_leaders_per_round: leader_count,
+        scheduler_interval: 25,
     }
 }
 
